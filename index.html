@@ -1,0 +1,146 @@
+﻿<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบตรวจสอบคุณภาพน้ำเรียลไทม์</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; text-align: center; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #1a73e8; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .card { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; text-align: left; }
+        #webcam-container { width: 100%; max-width: 400px; height: 300px; background: #ddd; margin: 0 auto; border-radius: 8px; overflow: hidden; }
+        .status-ok { color: green; font-weight: bold; }
+        .data-value { font-size: 24px; font-weight: bold; color: #333; margin-top: 5px; }
+        button { background: #1a73e8; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin-top: 15px; }
+        button:hover { background: #1557b5; }
+    </style>
+    <!-- โหลดไลบรารีของ Teachable Machine -->
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+</head>
+<body>
+
+<div class="container">
+    <h1>ระบบรวบรวมข้อมูลคุณภาพน้ำและสีน้ำเรียลไทม์</h1>
+    <p>สถาะนะระบบ: <span id="sys-status" class="status-ok">พร้อมทำงาน</span></p>
+    
+    <button type="button" onclick="initTM()">1. เปิดกล้องเว็บแคมและเริ่มระบบ AI</button>
+
+    <div class="grid">
+        <!-- ฝั่งเว็บแคม + Teachable Machine -->
+        <div class="card">
+            <h3>🎨 วิเคราะห์สีของน้ำ (Webcam AI)</h3>
+            <div id="webcam-container"></div>
+            <p>ผลลัพธ์สีน้ำ: <span id="water-color-res" class="data-value">-</span></p>
+            <p>ความแม่นยำ: <span id="accuracy-res" class="data-value">-</span></p>
+        </div>
+
+        <!-- ฝั่งเซนเซอร์จาก ESP32 -->
+        <div class="card">
+            <h3>🔌 ค่าจากเซนเซอร์ (ESP32)</h3>
+            <p>🌡️ อุณหภูมิ: <span id="esp-temp" class="data-value">-</span> °C</p>
+            <p>🧪 ค่า pH: <span id="esp-ph" class="data-value">-</span></p>
+            <p>☁️ ความขุ่น: <span id="esp-turbidity" class="data-value">-</span></p>
+            <p>💧 ค่า TDS: <span id="esp-tds" class="data-value">-</span> ppm</p>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    // ⚠️ แก้ไขข้อมูลของคุณตรงนี้ ⚠️
+    const URL_TM = "https://teachablemachine.withgoogle.com/models/RFKj-0XOC//";
+    const URL_GAS = "https://script.google.com/macros/s/AKfycbxoO-zfsczeKNJDle9BMdjZxTdNdf7Sx8Bg4HnxempRYI4beBP5gZcBrUe6BoDE8QDD/exec";
+    const DEVICE_NAME = "ESP32_Water_Node1";
+
+    let model, webcam, maxPredictions;
+    let currentWaterColor = "-";
+    let currentAccuracy = "-";
+    
+    // ตัวแปรเก็บค่าจาก ESP32 (รอรับข้อมูลเข้ามา)
+    let espData = { temp: "-", ph: "-", turbidity: "-", tds: "-" };
+
+    // ฟังก์ชันเปิดเว็บแคมและรัน AI จาก Teachable Machine
+    async function initTM() {
+        document.getElementById("sys-status").innerText = "กำลังโหลดโมเดล AI...";
+        const modelURL = URL_TM + "model.json";
+        const metadataURL = URL_TM + "metadata.json";
+
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+
+        // ตั้งค่าเว็บแคมขนาด 400x300 พิกเซล
+        const flip = true; 
+        webcam = new tmImage.Webcam(400, 300, flip); 
+        await webcam.setup(); 
+        await webcam.play();
+        window.requestAnimationFrame(loop);
+
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        document.getElementById("sys-status").innerText = "ระบบ AI ทำงานต่อเนื่องเรียบร้อย";
+    }
+
+    async function loop() {
+        webcam.update(); 
+        await predict();
+        window.requestAnimationFrame(loop);
+    }
+
+    // ฟังก์ชันทำนายกลุ่มสีน้ำจากกล้อง
+    async function predict() {
+        const prediction = await model.predict(webcam.canvas);
+        let highestPred = { className: "-", probability: 0 };
+        
+        // วิ่งหาคลาสที่คะแนนมั่นใจสูงสุด ณ เวลานั้น
+        for (let i = 0; i < maxPredictions; i++) {
+            if (prediction[i].probability > highestPred.probability) {
+                highestPred = prediction[i];
+            }
+        }
+        
+        currentWaterColor = highestPred.className;
+        currentAccuracy = (highestPred.probability * 100).toFixed(1) + "%";
+        
+        document.getElementById("water-color-res").innerText = currentWaterColor;
+        document.getElementById("accuracy-res").innerText = currentAccuracy;
+    }
+
+    // ฟังก์ชันเปิดช่องทางรับข้อมูลเซนเซอร์จาก ESP32 (เปิดผ่าน Web API ของหน้าเว็บนี้)
+    // โน้ต: ESP32 จะยิงข้อมูลมาที่หน้าเว็บนี้ หรือเราสามารถเขียนให้หน้าเว็บดึงข้อมูลมาได้
+    // ในขั้นตอนถัดไปเพื่อความง่าย เราจะตั้งเวลาส่งข้อมูลรวมจากหน้าเว็บนี้ไป Google Sheet ทุกๆ 1 นาที
+    
+    setInterval(sendDataToGoogleSheet, 60000); // 60000 มิลลิวินาที = 1 นาที ส่งข้อมูลหนึ่งครั้ง
+
+    function sendDataToGoogleSheet() {
+        // เช็กว่ามีข้อมูลพร้อมส่งหรือไม่
+        if(currentWaterColor === "-") return; 
+
+        // สร้างลิงก์ส่งข้อมูลแบบเดียวกับที่เราทดสอบบนบราวเซอร์
+        const sendUrl = `${URL_GAS}?device=${DEVICE_NAME}&temp=${espData.temp}&ph=${espData.ph}&turbidity=${espData.turbidity}&tds=${espData.tds}&waterColor=${currentWaterColor}&accuracy=${currentAccuracy}`;
+        
+        fetch(sendUrl)
+        .then(response => response.text())
+        .then(data => console.log("ส่งข้อมูลเรียบร้อย:", data))
+        .catch(error => console.error("เกิดข้อผิดพลาดในการส่ง:", error));
+    }
+
+    // จำลองฟังก์ชันรอรับข้อมูลจาก ESP32 (ใช้ Websocket หรือ HTTP POST มาที่เครื่องคอมฯ)
+    // สำหรับการเชื่อมต่อจริงในแล็บ สามารถใช้เบราว์เซอร์รับค่าผ่าน Web Serial หรือให้ ESP32 ยิงเข้ามา
+    window.addEventListener("message", function(event) {
+        // โค้ดรับข้อมูลเซนเซอร์จาก ESP32 จะมาอัปเดตลงตัวแปร espData ตรงนี้
+        if (event.data.type === "ESP32_DATA") {
+            espData.temp = event.data.temp;
+            espData.ph = event.data.ph;
+            espData.turbidity = event.data.turbidity;
+            espData.tds = event.data.tds;
+            
+            document.getElementById("esp-temp").innerText = espData.temp;
+            document.getElementById("esp-ph").innerText = espData.ph;
+            document.getElementById("esp-turbidity").innerText = espData.turbidity;
+            document.getElementById("esp-tds").innerText = espData.tds;
+        }
+    });
+</script>
+</body>
+</html>

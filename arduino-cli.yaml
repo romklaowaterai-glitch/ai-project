@@ -1,0 +1,9 @@
+board_manager:
+    additional_urls:
+        - https://espressif.com
+directories:
+    builtin:
+        libraries: C:\Users\Administrator\AppData\Local\Arduino15\libraries
+    data: c:\Users\Administrator\AppData\Local\Arduino15
+    user: c:\Users\Administrator\Documents\Arduino
+locale: en
