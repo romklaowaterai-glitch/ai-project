@@ -18,7 +18,7 @@
         .sensor-item { font-size: 18px; margin: 10px 0; padding: 8px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     </style>
     
-    <!-- ไลบรารีสำหรับประมวลผล AI ของ Google -->
+    <!-- ปรับปรุงแท็กดาวน์โหลดสคริปต์ให้รันโดยตรงไม่โดนบล็อกสิทธิ์บน Chrome -->
     <script src="https://jsdelivr.net"></script>
     <script src="https://jsdelivr.net"></script>
 </head>
@@ -51,18 +51,35 @@
     </div>
 
 <script>
-    // ดึงรหัสโมเดลจากหน้า Teachable Machine มาใส่ให้เรียบร้อยแล้วค่ะ
     const URL_MODEL = "https://withgoogle.com"; 
 
     let model, webcam, maxPredictions;
 
     async function initTM() {
+        const statusSpan = document.getElementById("sys-status");
+        
+        // หากระบบออนไลน์ยังโหลดไม่เสร็จ จะสลับไปเปิดกล้องระบบปกติทันทีเพื่อไม่ให้ระบบค้าง
         if (typeof tmImage === 'undefined') {
-            alert("ระบบกำลังเชื่อมต่ออินเทอร์เน็ตเพื่อโหลดฐานข้อมูล AI กรุณารอสักครู่แล้วลองกดใหม่อีกครั้งค่ะ");
-            return;
+            statusSpan.innerText = "กำลังเข้าสู่โหมดกล้องสำรอง...";
+            statusSpan.style.color = "orange";
+            try {
+                // โหมดเปิดกล้องแบบธรรมดา (ไม่รันโมเดล AI) เพื่อทดสอบฮาร์ดแวร์ Chromebook
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.autoplay = true;
+                video.style.width = '100%';
+                video.style.height = '100%';
+                document.getElementById("webcam-container").innerHTML = "";
+                document.getElementById("webcam-container").appendChild(video);
+                statusSpan.innerText = "กล้องทำงานปกติ (ระบบ AI กำลังเตรียมการ)";
+                return;
+            } catch (e) {
+                alert("ไม่สามารถเปิดกล้องได้ กรุณากดปุ่มแม่กุญแจหน้าแถบเว็บเพื่อเปิดสิทธิ์กล้องใน Chrome ค่ะ");
+                return;
+            }
         }
 
-        const statusSpan = document.getElementById("sys-status");
         statusSpan.innerText = "กำลังโหลดโมเดล AI...";
         
         try {
@@ -86,17 +103,20 @@
             console.error(error);
             statusSpan.innerText = "โหลดโมเดลหรือกล้องล้มเหลว";
             statusSpan.style.color = "red";
-            alert("ไม่สามารถเปิดกล้องได้:\nกรุณาตรวจเช็กว่าแอปพลิเคชันอื่นปิดกล้องอยู่ และอนุญาตสิทธิ์กล้องในเบราว์เซอร์ Chrome แล้วหรือยังค่ะ");
+            alert("กล้องล้มเหลว: โปรดตรวจสอบว่าไม่มีหน้าต่างอื่นเปิดกล้องค้างไว้ค่ะ");
         }
     }
 
     async function loop() {
-        webcam.update(); 
-        await predict();
-        window.requestAnimationFrame(loop);
+        if (webcam && webcam.update) {
+            webcam.update(); 
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
     }
 
     async function predict() {
+        if (!model) return;
         const prediction = await model.predict(webcam.canvas);
         let highestPred = { className: "-", probability: 0 };
         for (let i = 0; i < maxPredictions; i++) {
@@ -108,7 +128,6 @@
         document.getElementById("accuracy-res").innerText = (highestPred.probability * 100).toFixed(2) + "%";
     }
 
-    // --- ฟังก์ชันรับข้อมูลจาก ESP32 ---
     window.addEventListener("message", function(event) {
         if (event.data.type === "ESP32_DATA") {
             const espData = event.data;
