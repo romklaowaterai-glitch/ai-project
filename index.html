@@ -17,7 +17,7 @@
         button:hover { background: #1557b5; }
         .sensor-item { font-size: 18px; margin: 10px 0; padding: 8px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     </style>
-    <!-- ✅ แก้ไขจุดที่ 1: ดึง Library ตัวจริงของ TensorFlow และ Teachable Machine มาใช้งานให้กล้องเปิดได้จริง -->
+    <!-- ลิงก์ Library ตัวจริงปลดล็อกกล้องและรัน AI -->
     <script src="https://jsdelivr.net"></script>
     <script src="https://jsdelivr.net"></script>
 </head>
@@ -48,34 +48,27 @@
     </div>
 
 <script>
-    // 🔗 1. อย่าลืมนำลิงก์โมเดลจากเว็บ Teachable Machine ของคุณมาใส่ตรงนี้แทนลิงก์จำลองนะคะ (ต้องลงท้ายด้วยเครื่องหมาย / )
-    const URL_MODEL = "https://teachablemachine.withgoogle.com/models/[...]"; 
+    // ✅ แก้ไขให้แล้ว: เติมรหัสโมเดลจริง RFKj-0XOC ของคุณเข้าสู่ระบบเรียบร้อยครับ
+    const URL_MODEL = "https://withgoogle.com"; 
 
-    // 🔗 2. ลิงก์ Web App (URL) ของคุณถูกต้องและถูกเซ็ตค่าไว้ให้แล้วครับ
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyo-_XK4WmtjjAK-UTN2_CZ4-_laizQBAoJ3t85N8MF3qJSvZQmvQ398rECAknZVxj6/exec"; 
+    // ลิงก์ Web App URL ประจำตัวของคุณ
+    const WEB_APP_URL = "https://google.com"; 
 
     let model, webcam, maxPredictions;
 
     async function fetchSensorData() {
         const loadStatus = document.getElementById("load-sheet-status");
-        
         try {
             loadStatus.innerText = "(กำลังดึงข้อมูลล่าสุด...)";
             const response = await fetch(`${WEB_APP_URL}?read=latest`);
             const data = await response.json();
             
             if (data && !data.error) {
-                // ✅ แก้ไขจุดที่ 3: ปรับโครงสร้างดักจับแกะค่าแบบอาร์เรย์ให้ถูกต้องสัมพันธ์กับข้อมูลที่ดึงมา
-                // ตรวจสอบว่าถ้าข้อมูลส่งมาเป็นอาร์เรย์ซ้อน ให้ดึงสมาชิกลำดับแรกออกมาใช้งาน
-                let tempVal = Array.isArray(data.temp) ? data.temp[0] : data.temp;
-                let phVal = Array.isArray(data.ph) ? data.ph[0] : data.ph;
-                let turbVal = Array.isArray(data.turbidity) ? data.turbidity[0] : data.turbidity;
-                let tdsVal = Array.isArray(data.tds) ? data.tds[0] : data.tds;
-
-                document.getElementById("esp-temp").innerText = tempVal;
-                document.getElementById("esp-ph").innerText = phVal;
+                document.getElementById("esp-temp").innerText = data.temp;
+                document.getElementById("esp-ph").innerText = data.ph;
                 
-                let v = parseFloat(turbVal);
+                // แปลงแรงดันไฟเป็น NTU
+                let v = parseFloat(data.turbidity);
                 let ntu = 0;
                 if (!isNaN(v)) {
                     if (v < 2.5) { ntu = 3000; } 
@@ -83,7 +76,7 @@
                     if (ntu < 0) ntu = 0;
                 }
                 document.getElementById("esp-turbidity").innerText = ntu.toFixed(1) + " NTU (" + v + " V)";
-                document.getElementById("esp-tds").innerText = tdsVal;
+                document.getElementById("esp-tds").innerText = data.tds;
                 
                 loadStatus.innerText = "(อัปเดตแล้ว)";
             } else {
@@ -96,7 +89,7 @@
     }
 
     fetchSensorData();
-    setInterval(fetchSensorData, 5000);
+    setInterval(fetchSensorData, 5000); 
 
     async function initTM() {
         const statusSpan = document.getElementById("sys-status");
@@ -121,7 +114,7 @@
             statusSpan.style.color = "green";
         } catch (error) {
             console.error(error);
-            statusSpan.innerText = "โหลดโมเดลหรือกล้องล้มเหลว";
+            statusSpan.innerText = "โหลดกล้องหรือโมเดลล้มเหลว";
             statusSpan.style.color = "red";
         }
     }
