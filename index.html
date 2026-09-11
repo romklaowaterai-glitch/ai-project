@@ -17,6 +17,8 @@
         button:hover { background: #1557b5; }
         .sensor-item { font-size: 18px; margin: 10px 0; padding: 8px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     </style>
+    
+    <!-- แก้ไขตำแหน่งที่ 1: ดึง Library ของ TensorFlow และ Teachable Machine ที่ถูกต้องเข้ามาใช้งาน -->
     <script src="https://jsdelivr.net"></script>
     <script src="https://jsdelivr.net"></script>
 </head>
@@ -47,8 +49,10 @@
     </div>
 
 <script>
-    const URL_MODEL = "const URL_MODEL = "https://withgoogle.comโมเดลของคุณ/"; 
-"; 
+    // แก้ไขตำแหน่งที่ 2: วางลิงก์โมเดลของคุณตรงนี้ (อย่าลืมใส่เครื่องหมาย / ปิดท้าย)
+    // หมายเหตุ: หากตอนนี้ยังไม่มีลิงก์โมเดล ให้ใส่ลิงก์ตัวอย่างที่ผมใส่ไว้ให้ทดสอบเปิดกล้องดูก่อนได้ครับ
+    const URL_MODEL = "https://withgoogle.com"; 
+
     let model, webcam, maxPredictions;
 
     async function initTM() {
@@ -57,17 +61,22 @@
         try {
             const modelURL = URL_MODEL + "model.json";
             const metadataURL = URL_MODEL + "metadata.json";
+            
+            // โหลดโมเดล AI
             model = await tmImage.load(modelURL, metadataURL);
             maxPredictions = model.getTotalClasses();
 
+            // ตั้งค่าและเปิดใช้งานกล้องเว็บแคม
             const flip = true; 
             webcam = new tmImage.Webcam(300, 300, flip); 
-            await webcam.setup(); 
+            await webcam.setup(); // ตรงนี้ระบบจะขอสิทธิ์เข้าถึงกล้องบน Chromebook ให้กด อนุญาต (Allow)
             await webcam.play();
             window.requestAnimationFrame(loop);
 
+            // แสดงภาพจากกล้องบนหน้าจอ
             document.getElementById("webcam-container").innerHTML = "";
             document.getElementById("webcam-container").appendChild(webcam.canvas);
+            
             statusSpan.innerText = "ระบบ AI กำลังทำงาน";
             statusSpan.style.color = "green";
         } catch (error) {
