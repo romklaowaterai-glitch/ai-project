@@ -18,9 +18,13 @@
         .sensor-item { font-size: 18px; margin: 10px 0; padding: 8px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     </style>
     
-    <!-- ไลบรารีสำหรับประมวลผล AI ของ Google -->
+    <!-- โหลดไลบรารี AI -->
     <script src="https://jsdelivr.net"></script>
     <script src="https://jsdelivr.net"></script>
+    
+    <!-- ➕ เพิ่มสคริปต์ดึงข้อมูล Firebase -->
+    <script src="https://gstatic.com"></script>
+    <script src="https://gstatic.com"></script>
 </head>
 <body>
 
@@ -31,7 +35,6 @@
         <button type="button" onclick="initTM()">1. เปิดกล้องเว็บแคมและเริ่มระบบ AI</button>
 
         <div class="grid">
-            <!-- ฝั่งเว็บแคมและผลลัพธ์ AI -->
             <div class="card">
                 <h3>📷 วิเคราะห์สีของน้ำ (Webcam AI)</h3>
                 <div id="webcam-container">ภาพกล้องจะแสดงตรงนี้</div>
@@ -39,50 +42,36 @@
                 <p>ความแม่นยำ: <span id="accuracy-res" class="data-value">-</span></p>
             </div>
 
-            <!-- ฝั่งเซนเซอร์ ดึงค่าจาก Google Sheets -->
             <div class="card">
-                <h3>🔌 ค่าจากเซนเซอร์ (Google Sheets)</h3>
+                <h3>🔌 ค่าจากเซนเซอร์ (ESP32 via Wi-Fi)</h3>
                 <div class="sensor-item">🌡️ อุณหภูมิ: <span id="esp-temp" style="font-weight:bold;">-</span> °C</div>
                 <div class="sensor-item">🧪 ค่า pH: <span id="esp-ph" style="font-weight:bold;">-</span></div>
                 <div class="sensor-item">☁️ ความขุ่น: <span id="esp-turbidity" style="font-weight:bold;">-</span></div>
                 <div class="sensor-item">💧 ค่า TDS: <span id="esp-tds" style="font-weight:bold;">-</span> ppm</div>
-                <p style="font-size: 12px; color: gray; margin-top: 10px; text-align: right;">อัปเดตล่าสุด: <span id="last-update">-</span></p>
             </div>
         </div>
     </div>
 
 <script>
-    // ⚙️ แก้ไขจุดที่ 1: นำลิงก์ Google Web App (ลิงก์เดียวกับที่ใช้ใน Arduino IDE) มาใส่ในเครื่องหมายคำพูดนี้ค่ะ
-    const GOOGLE_SCRIPT_URL = "วางลิงก์_Google_Apps_Script_URL_ของคุณพี่ตรงนี้";
+    // ⚙️ นำค่า Config ของโครงงาน Firebase ของคุณพี่มาวางทับตรงนี้ได้เลยค่ะ ⚙️
+    const firebaseConfig = {
+        databaseURL: "https://ชื่อโปรเจกต์ของคุณพี่://firebaseio.com"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
 
-    // ฟังก์ชันดึงข้อมูลจาก Google Sheets มาโชว์บนหน้าเว็บ
-    async function fetchSensorData() {
-        try {
-            // ส่งคำขอแบบ GET เพื่อขอข้อมูลแถวล่างสุด
-            const response = await fetch(GOOGLE_SCRIPT_URL + "?read=latest");
-            if (!response.ok) return;
-            const data = await response.json();
-            
-            // นำข้อมูลไปอัปเดตลงหน้าเว็บ (แก้ไขชื่อตัวแปรให้ตรงกับหัวตารางใน Google Sheet ของคุณพี่ได้เลยค่ะ)
-            if (data) {
-                document.getElementById("esp-temp").innerText = data.temp !== undefined ? data.temp : "-";
-                document.getElementById("esp-ph").innerText = data.ph !== undefined ? data.ph : "-";
-                document.getElementById("esp-turbidity").innerText = data.turbidity !== undefined ? data.turbidity : "-";
-                document.getElementById("esp-tds").innerText = data.tds !== undefined ? data.tds : "-";
-                document.getElementById("last-update").innerText = new Date().toLocaleTimeString();
-            }
-        } catch (error) {
-            console.error("ดึงข้อมูลจาก Google Sheets ไม่สำเร็จ:", error);
+    // ดึงค่าเรียลไทม์อัตโนมัติจาก Firebase
+    database.ref('water_sensors').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if(data) {
+            document.getElementById("esp-temp").innerText = data.temp !== undefined ? data.temp : "-";
+            document.getElementById("esp-ph").innerText = data.ph !== undefined ? data.ph : "-";
+            document.getElementById("esp-turbidity").innerText = data.turbidity !== undefined ? data.turbidity : "-";
+            document.getElementById("esp-tds").innerText = data.tds !== undefined ? data.tds : "-";
         }
-    }
+    });
 
-    // สั่งให้ระบบดึงข้อมูลจาก Google Sheets ใหม่ทุกๆ 3 วินาที (3000 มิลลิวินาที)
-    setInterval(fetchSensorData, 3000);
-    // เรียกทำงานทันทีที่เปิดหน้าเว็บครั้งแรก
-    fetchSensorData();
-
-
-    // --- โค้ดกล้อง AI ของเดิมของคุณพี่ทำงานได้ปกติแล้ว ห้ามลบนะคะ ---
+    // --- โค้ดส่วนประมวลผลกล้อง AI ของเดิมของคุณพี่ ---
     const URL_MODEL = "https://withgoogle.com"; 
     let model, webcam, maxPredictions;
 
