@@ -18,7 +18,7 @@
         .sensor-item { font-size: 18px; margin: 10px 0; padding: 8px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     </style>
     
-    <!-- แก้ไขจุดที่ 1: เติมลิงก์ไลบรารี TensorFlow และ Teachable Machine ที่ถูกต้องและสมบูรณ์ -->
+    <!-- ไลบรารีสำหรับประมวลผล AI ของ Google -->
     <script src="https://jsdelivr.net"></script>
     <script src="https://jsdelivr.net"></script>
 </head>
@@ -51,15 +51,14 @@
     </div>
 
 <script>
-    // แก้ไขจุดที่ 2: เปลี่ยนลิงก์ข้างล่างนี้ให้เป็น ลิงก์แชร์ออนไลน์ (Sharable Link) จากเว็บ Teachable Machine ของคุณพี่นะคะ
-    // ตัวอย่างรูปแบบลิงก์: "https://withgoogle.com" (ต้องมีเครื่องหมาย / ปิดท้ายด้วยนะคะ)
-    const URL_MODEL = "https://teachablemachine.withgoogle.com/models/RFKj-0XOC/"; 
+    // ดึงรหัสโมเดลจากหน้า Teachable Machine มาใส่ให้เรียบร้อยแล้วค่ะ
+    const URL_MODEL = "https://withgoogle.com"; 
 
     let model, webcam, maxPredictions;
 
     async function initTM() {
         if (typeof tmImage === 'undefined') {
-            alert("ระบบกำลังโหลดไลบรารี AI จากอินเทอร์เน็ต กรุณารอ 2-3 วินาทีแล้วลองกดใหม่อีกครั้งค่ะ");
+            alert("ระบบกำลังเชื่อมต่ออินเทอร์เน็ตเพื่อโหลดฐานข้อมูล AI กรุณารอสักครู่แล้วลองกดใหม่อีกครั้งค่ะ");
             return;
         }
 
@@ -87,7 +86,7 @@
             console.error(error);
             statusSpan.innerText = "โหลดโมเดลหรือกล้องล้มเหลว";
             statusSpan.style.color = "red";
-            alert("ไม่สามารถเปิดกล้องหรือโหลดโมเดลได้:\n1. ตรวจสอบว่าเปลี่ยน URL_MODEL ในโค้ดเป็นลิงก์ของคุณแล้วหรือยัง\n2. ตรวจสอบสิทธิ์การอนุญาตให้เข้าถึงกล้องของเบราว์เซอร์ Chrome ค่ะ");
+            alert("ไม่สามารถเปิดกล้องได้:\nกรุณาตรวจเช็กว่าแอปพลิเคชันอื่นปิดกล้องอยู่ และอนุญาตสิทธิ์กล้องในเบราว์เซอร์ Chrome แล้วหรือยังค่ะ");
         }
     }
 
