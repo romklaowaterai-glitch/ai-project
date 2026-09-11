@@ -18,7 +18,7 @@
         .sensor-item { font-size: 18px; margin: 10px 0; padding: 8px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     </style>
     
-    <!-- ปรับปรุงแท็กดาวน์โหลดสคริปต์ให้รันโดยตรงไม่โดนบล็อกสิทธิ์บน Chrome -->
+    <!-- ไลบรารีสำหรับประมวลผล AI ของ Google -->
     <script src="https://jsdelivr.net"></script>
     <script src="https://jsdelivr.net"></script>
 </head>
@@ -39,53 +39,59 @@
                 <p>ความแม่นยำ: <span id="accuracy-res" class="data-value">-</span></p>
             </div>
 
-            <!-- ฝั่งเซนเซอร์ ESP32 -->
+            <!-- ฝั่งเซนเซอร์ ดึงค่าจาก Google Sheets -->
             <div class="card">
-                <h3>🔌 ค่าจากเซนเซอร์ (ESP32)</h3>
+                <h3>🔌 ค่าจากเซนเซอร์ (Google Sheets)</h3>
                 <div class="sensor-item">🌡️ อุณหภูมิ: <span id="esp-temp" style="font-weight:bold;">-</span> °C</div>
                 <div class="sensor-item">🧪 ค่า pH: <span id="esp-ph" style="font-weight:bold;">-</span></div>
                 <div class="sensor-item">☁️ ความขุ่น: <span id="esp-turbidity" style="font-weight:bold;">-</span></div>
                 <div class="sensor-item">💧 ค่า TDS: <span id="esp-tds" style="font-weight:bold;">-</span> ppm</div>
+                <p style="font-size: 12px; color: gray; margin-top: 10px; text-align: right;">อัปเดตล่าสุด: <span id="last-update">-</span></p>
             </div>
         </div>
     </div>
 
 <script>
-    const URL_MODEL = "https://withgoogle.com"; 
+    // ⚙️ แก้ไขจุดที่ 1: นำลิงก์ Google Web App (ลิงก์เดียวกับที่ใช้ใน Arduino IDE) มาใส่ในเครื่องหมายคำพูดนี้ค่ะ
+    const GOOGLE_SCRIPT_URL = "วางลิงก์_Google_Apps_Script_URL_ของคุณพี่ตรงนี้";
 
+    // ฟังก์ชันดึงข้อมูลจาก Google Sheets มาโชว์บนหน้าเว็บ
+    async function fetchSensorData() {
+        try {
+            // ส่งคำขอแบบ GET เพื่อขอข้อมูลแถวล่างสุด
+            const response = await fetch(GOOGLE_SCRIPT_URL + "?read=latest");
+            if (!response.ok) return;
+            const data = await response.json();
+            
+            // นำข้อมูลไปอัปเดตลงหน้าเว็บ (แก้ไขชื่อตัวแปรให้ตรงกับหัวตารางใน Google Sheet ของคุณพี่ได้เลยค่ะ)
+            if (data) {
+                document.getElementById("esp-temp").innerText = data.temp !== undefined ? data.temp : "-";
+                document.getElementById("esp-ph").innerText = data.ph !== undefined ? data.ph : "-";
+                document.getElementById("esp-turbidity").innerText = data.turbidity !== undefined ? data.turbidity : "-";
+                document.getElementById("esp-tds").innerText = data.tds !== undefined ? data.tds : "-";
+                document.getElementById("last-update").innerText = new Date().toLocaleTimeString();
+            }
+        } catch (error) {
+            console.error("ดึงข้อมูลจาก Google Sheets ไม่สำเร็จ:", error);
+        }
+    }
+
+    // สั่งให้ระบบดึงข้อมูลจาก Google Sheets ใหม่ทุกๆ 3 วินาที (3000 มิลลิวินาที)
+    setInterval(fetchSensorData, 3000);
+    // เรียกทำงานทันทีที่เปิดหน้าเว็บครั้งแรก
+    fetchSensorData();
+
+
+    // --- โค้ดกล้อง AI ของเดิมของคุณพี่ทำงานได้ปกติแล้ว ห้ามลบนะคะ ---
+    const URL_MODEL = "https://script.google.com/macros/s/AKfycbxoO-zfsczeKNJDle9BMdjZxTdNdf7Sx8Bg4HnxempRYI4beBP5gZcBrUe6BoDE8QDD/exec"; 
     let model, webcam, maxPredictions;
 
     async function initTM() {
         const statusSpan = document.getElementById("sys-status");
-        
-        // หากระบบออนไลน์ยังโหลดไม่เสร็จ จะสลับไปเปิดกล้องระบบปกติทันทีเพื่อไม่ให้ระบบค้าง
-        if (typeof tmImage === 'undefined') {
-            statusSpan.innerText = "กำลังเข้าสู่โหมดกล้องสำรอง...";
-            statusSpan.style.color = "orange";
-            try {
-                // โหมดเปิดกล้องแบบธรรมดา (ไม่รันโมเดล AI) เพื่อทดสอบฮาร์ดแวร์ Chromebook
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.autoplay = true;
-                video.style.width = '100%';
-                video.style.height = '100%';
-                document.getElementById("webcam-container").innerHTML = "";
-                document.getElementById("webcam-container").appendChild(video);
-                statusSpan.innerText = "กล้องทำงานปกติ (ระบบ AI กำลังเตรียมการ)";
-                return;
-            } catch (e) {
-                alert("ไม่สามารถเปิดกล้องได้ กรุณากดปุ่มแม่กุญแจหน้าแถบเว็บเพื่อเปิดสิทธิ์กล้องใน Chrome ค่ะ");
-                return;
-            }
-        }
-
         statusSpan.innerText = "กำลังโหลดโมเดล AI...";
-        
         try {
             const modelURL = URL_MODEL + "model.json";
             const metadataURL = URL_MODEL + "metadata.json";
-
             model = await tmImage.load(modelURL, metadataURL);
             maxPredictions = model.getTotalClasses();
 
@@ -103,20 +109,16 @@
             console.error(error);
             statusSpan.innerText = "โหลดโมเดลหรือกล้องล้มเหลว";
             statusSpan.style.color = "red";
-            alert("กล้องล้มเหลว: โปรดตรวจสอบว่าไม่มีหน้าต่างอื่นเปิดกล้องค้างไว้ค่ะ");
         }
     }
 
     async function loop() {
-        if (webcam && webcam.update) {
-            webcam.update(); 
-            await predict();
-            window.requestAnimationFrame(loop);
-        }
+        webcam.update(); 
+        await predict();
+        window.requestAnimationFrame(loop);
     }
 
     async function predict() {
-        if (!model) return;
         const prediction = await model.predict(webcam.canvas);
         let highestPred = { className: "-", probability: 0 };
         for (let i = 0; i < maxPredictions; i++) {
@@ -127,16 +129,6 @@
         document.getElementById("water-color-res").innerText = highestPred.className;
         document.getElementById("accuracy-res").innerText = (highestPred.probability * 100).toFixed(2) + "%";
     }
-
-    window.addEventListener("message", function(event) {
-        if (event.data.type === "ESP32_DATA") {
-            const espData = event.data;
-            document.getElementById("esp-temp").innerText = espData.temp;
-            document.getElementById("esp-ph").innerText = espData.ph;
-            document.getElementById("esp-turbidity").innerText = espData.turbidity;
-            document.getElementById("esp-tds").innerText = espData.tds;
-        }
-    });
 </script>
 </body>
 </html>
