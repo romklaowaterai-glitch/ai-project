@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบตรวจสอบคุณภาพน้ำเรียลไทม์ (เวอร์ชันทดสอบกล้อง)</title>
+    <title>ระบบตรวจสอบคุณภาพน้ำเรียลไทม์</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
         .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
@@ -13,28 +13,32 @@
         #webcam-container { width: 100%; max-width: 300px; height: 300px; background: #ddd; margin: 0 auto; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
         .status-ok { color: #1a73e8; font-weight: bold; }
         .data-value { font-size: 24px; font-weight: bold; color: #1a73e8; margin-top: 5px; }
-        button { display: block; width: 100%; max-width: 300px; margin: 20px auto; background: #e8711a; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
-        button:hover { background: #b55215; }
+        button { display: block; width: 100%; max-width: 300px; margin: 20px auto; background: #1a73e8; color: white; border: none; padding: 12px 20px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #1557b5; }
         .sensor-item { font-size: 18px; margin: 10px 0; padding: 8px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     </style>
+    <!-- เรียกใช้ Library สำหรับ Teachable Machine ห้ามลบเด็ดขาดครับ -->
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
 </head>
 <body>
 
     <div class="container">
         <h1>ระบบรวบรวมข้อมูลคุณภาพน้ำและสีน้ำเรียลไทม์</h1>
-        <p style="text-align: center;">สถานะระบบทดสอบ: <span id="sys-status" class="status-ok" style="color:orange;">พร้อมทดสอบเปิดกล้อง</span></p>
+        <p style="text-align: center;">สถานะระบบ: <span id="sys-status" class="status-ok">พร้อมทำงาน</span></p>
 
-        <button type="button" onclick="startTestCamera()">📷 กดเพื่อทดสอบเปิดกล้องถ่ายรูป</button>
+        <button type="button" onclick="initTM()">1. เปิดกล้องเว็บแคมและเริ่มระบบ AI</button>
 
         <div class="grid">
             <div class="card">
-                <h3>📷 จอภาพทดสอบ (Webcam Test)</h3>
+                <h3>📷 วิเคราะห์สีของน้ำ (Webcam AI)</h3>
                 <div id="webcam-container">ภาพกล้องจะแสดงตรงนี้</div>
-                <p>ผลลัพธ์การทดสอบ: <span id="camera-err-log" style="color: red; font-size: 14px;">-</span></p>
+                <p>ผลลัพธ์สีน้ำ: <span id="water-color-res" class="data-value">-</span></p>
+                <p>ความแม่นยำ: <span id="accuracy-res" class="data-value">-</span></p>
             </div>
 
             <div class="card">
-                <h3>🔌 ค่าจากเซนเซอร์ (Google Sheets)</h3>
+                <h3>🔌 ค่าจากเซนเซอร์ (Google Sheets) <span id="load-sheet-status" style="font-size:12px; color:gray;">(กำลังอัปเดต...)</span></h3>
                 <div class="sensor-item">🌡️ อุณหภูมิ: <span id="esp-temp" style="font-weight:bold;">-</span> °C</div>
                 <div class="sensor-item">🧪 ค่า pH: <span id="esp-ph" style="font-weight:bold;">-</span></div>
                 <div class="sensor-item">☁️ ความขุ่น: <span id="esp-turbidity" style="font-weight:bold;">-</span></div>
@@ -44,40 +48,103 @@
     </div>
 
 <script>
-    async function startTestCamera() {
-        const statusSpan = document.getElementById("sys-status");
-        const errLog = document.getElementById("camera-err-log");
-        const container = document.getElementById("webcam-container");
+    // 🔗 1. ใส่ลิงก์โมเดล Teachable Machine ของคุณ (มีรหัสปิดท้ายตามโค้ดตัวแปรคุณ)
+    const URL_MODEL = "https://withgoogle.com"; 
+
+    // 🔗 2. ⚠️ สำคัญมากที่สุด: ก๊อปปี้ลิงก์ Web App (URL) ที่เพิ่งกด Deploy เวอร์ชันใหม่จากหน้า Apps Script มาวางแทนลิงก์ข้างล่างนี้ครับ
+    const WEB_APP_URL = "https://google.com"; 
+
+    let model, webcam, maxPredictions;
+
+    // --- ฟังก์ชันดึงค่าจาก Google Sheets มาอัปเดตบนหน้าเว็บ ---
+    async function fetchSensorData() {
+        const loadStatus = document.getElementById("load-sheet-status");
+        if(WEB_APP_URL.includes("XXXXXX")) {
+            loadStatus.innerText = "(ยังไม่ได้ใส่ลิงก์ Web App ของแท้)";
+            return;
+        }
         
-        statusSpan.innerText = "กำลังเรียกเปิดกล้อง...";
-        errLog.innerText = "-";
-
         try {
-            // สั่งเปิดกล้องของคอมพิวเตอร์โดยตรงผ่าน HTML5 (ไม่ผ่าน AI)
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 300, height: 300 } });
+            loadStatus.innerText = "(กำลังดึงข้อมูลล่าสุด...)";
+            const response = await fetch(`${WEB_APP_URL}?read=latest`);
+            const data = await response.json();
             
-            // สร้างแท็กวิดีโอเพื่อแสดงภาพ
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.autoplay = true;
-            video.playsInline = true;
-            video.style.width = "100%";
-            video.style.height = "100%";
-            video.style.objectFit = "cover";
+            if (data && !data.error) {
+                // อัปเดตข้อมูลเซนเซอร์รายตัวลงหน้าจอ โดยแกะค่าจาก JSON
+                document.getElementById("esp-temp").innerText = data.temp;
+                document.getElementById("esp-ph").innerText = data.ph;
+                
+                // แปลงค่าโวลต์เป็น NTU ตามสูตรคำนวณใน Google Script ของคุณ
+                let v = parseFloat(data.turbidity);
+                let ntu = 0;
+                if (!isNaN(v)) {
+                    if (v < 2.5) { ntu = 3000; } 
+                    else { ntu = (-1120.4 * Math.pow(v, 2)) + (5742.3 * v) - 4352.9; }
+                    if (ntu < 0) ntu = 0;
+                }
+                document.getElementById("esp-turbidity").innerText = ntu.toFixed(1) + " NTU (" + v + " V)";
+                document.getElementById("esp-tds").innerText = data.tds;
+                
+                loadStatus.innerText = "(อัปเดตแล้ว)";
+            } else {
+                loadStatus.innerText = "(ไม่พบข้อมูลในตาราง)";
+            }
+        } catch (error) {
+            console.error("ดึงข้อมูลชีตล้มเหลว:", error);
+            loadStatus.innerText = "(เชื่อมต่อชีตไม่สำเร็จ)";
+        }
+    }
 
-            container.innerHTML = "";
-            container.appendChild(video);
+    // สั่งรันฟังก์ชันดึงข้อมูลทันทีเมื่อเปิดหน้าเว็บ และดึงซ้ำอัตโนมัติทุก 5 วินาที
+    fetchSensorData();
+    setInterval(fetchSensorData, 5000);
 
-            statusSpan.innerText = "เปิดกล้องสำเร็จแล้ว!";
+    // --- ส่วนประมวลผลกล้องเว็บแคมและทำนายผลด้วย AI ---
+    async function initTM() {
+        const statusSpan = document.getElementById("sys-status");
+        statusSpan.innerText = "กำลังโหลดโมเดล AI...";
+        try {
+            const modelURL = URL_MODEL + "model.json";
+            const metadataURL = URL_MODEL + "metadata.json";
+            
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true; 
+            webcam = new tmImage.Webcam(300, 300, flip); 
+            await webcam.setup(); 
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            document.getElementById("webcam-container").innerHTML = "";
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            
+            statusSpan.innerText = "ระบบ AI กำลังทำงาน";
             statusSpan.style.color = "green";
         } catch (error) {
             console.error(error);
-            statusSpan.innerText = "เปิดกล้องล้มเหลว";
+            statusSpan.innerText = "โหลดโมเดลหรือกล้องล้มเหลว";
             statusSpan.style.color = "red";
-            errLog.innerText = "ข้อผิดพลาดจากระบบ: " + error.name + " (" + error.message + ")";
         }
+    }
+
+    async function loop() {
+        webcam.update(); 
+        await predict();
+        window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+        const prediction = await model.predict(webcam.canvas);
+        let highestPred = { className: "-", probability: 0 };
+        for (let i = 0; i < maxPredictions; i++) {
+            if (prediction[i].probability > highestPred.probability) {
+                highestPred = prediction[i];
+            }
+        }
+        document.getElementById("water-color-res").innerText = highestPred.className;
+        document.getElementById("accuracy-res").innerText = (highestPred.probability * 100).toFixed(2) + "%";
     }
 </script>
 </body>
 </html>
-
