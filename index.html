@@ -122,8 +122,41 @@
             }
         }
 
-        function sendLineNotification(message) {
-            console.log("ส่งแจ้งเตือนไปยัง LINE:", message);
+                function sendLineNotification(message) {
+            console.log("กำลังส่งแจ้งเตือนไปยัง LINE:", message);
+            
+            // ⚠️ สำคัญมาก: คุณต้องเปลี่ยน YOUR_LINE_NOTIFY_TOKEN เป็น Token จริงจากเว็บ LINE Notify ก่อน
+            if (LINE_NOTIFY_TOKEN === "nTg2mW79sxUh5hCI5OzZ2ykDMdE3/oCfkHoURVppjiIpLKuReHuZU7Xp0pcCyRJOtBe/GyT9L4TVSA3vxvE3HJw1EGJ9sR4uLysbkE1V4RykBcmAtJ2a10Pw+w8M+m/Yw5R2i/1Gh6PD9d7vPArnGAdB04t89/1O/w1cDnyilFU=" || LINE_NOTIFY_TOKEN === "") {
+                console.log("nTg2mW79sxUh5hCI5OzZ2ykDMdE3/oCfkHoURVppjiIpLKuReHuZU7Xp0pcCyRJOtBe/GyT9L4TVSA3vxvE3HJw1EGJ9sR4uLysbkE1V4RykBcmAtJ2a10Pw+w8M+m/Yw5R2i/1Gh6PD9d7vPArnGAdB04t89/1O/w1cDnyilFU=");
+                return;
+            }
+
+            // ใช้ CORS Proxy ฟรี เพื่อไม่ให้เบราว์เซอร์บล็อกการส่งข้อมูลไปยัง LINE
+            const proxyUrl = "https://herokuapp.com";
+            const lineUrl = "https://line.me";
+
+            fetch(proxyUrl + lineUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Authorization": "Bearer " + LINE_NOTIFY_TOKEN
+                },
+                body: new URLSearchParams({
+                    message: `\n📊 รายงานคุณภาพน้ำผิดปกติ:\n${message}\n\n- ค่าปัจจุบัน -\npH: ${currentpH}\nTDS: ${currentTDS} ppm\nTemp: ${currentTemp} °C\nTurbidity: ${currentTurbidity} NTU`
+                })
+            })
+            .then(res => {
+                if (res.ok) {
+                    console.log("ส่งข้อความเข้า LINE Notify สำเร็จแล้ว ✅");
+                } else {
+                    console.error("ส่งข้อความล้มเหลว สถานะ:", res.status);
+                }
+            })
+            .catch(err => {
+                console.error("เกิดข้อผิดพลาดในการส่ง LINE:", err);
+            });
+        }
+
         }
     </script>
 </body>
